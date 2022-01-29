@@ -1,0 +1,16 @@
+co r {
+    eq [2] [1] 0
+    if [2] ac
+
+    set [2] [1]
+    mod [1] [0] [1]
+    set [0] [2]
+}
+
+iin [0]
+iin [1]
+mul [3] [0] [1]
+ca r
+div [0] [3] [0]
+iout [0]
+ac
