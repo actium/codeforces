@@ -1,0 +1,42 @@
+co r {
+    cin [0]
+
+    eq [1] [0] -1
+    if [1] ac
+
+    eq [1] [0] 72
+    if [1] inc [2]
+
+    eq [1] [0] 81
+    if [1] inc [2]
+
+    eq [1] [0] 57
+    if [1] inc [2]
+}
+
+co y {
+    cout 89
+    cout 69
+    cout 83
+    ac
+}
+
+co n {
+    cout 78
+    cout 79
+    ac
+}
+
+co p {
+    eq [1] [2] 0
+    if [1] ca n
+
+    neq [1] [2] 0
+    if [1] ca y
+
+    ac
+}
+
+ca r
+ca p
+ac
