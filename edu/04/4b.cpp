@@ -1,15 +1,7 @@
 #include <iostream>
 #include <vector>
 
-using range_t = std::pair<unsigned, unsigned>;
-
 unsigned modulus;
-
-template <typename T, typename U>
-std::istream& operator >>(std::istream& input, std::pair<T, U>& v)
-{
-    return input >> v.first >> v.second;
-}
 
 template <typename T>
 std::istream& operator >>(std::istream& input, std::vector<T>& v)
@@ -27,95 +19,183 @@ struct Matrix {
     };
 };
 
-std::istream& operator >>(std::istream& input, Matrix& v)
+std::istream& operator >>(std::istream& input, Matrix& m)
 {
-    return input >> v.cells[0][0] >> v.cells[0][1] >> v.cells[1][0] >> v.cells[1][1];
+    return input >> m.cells[0][0] >> m.cells[0][1] >> m.cells[1][0] >> m.cells[1][1];
 }
 
 Matrix operator *(const Matrix& lhs, const Matrix& rhs)
 {
-    Matrix v;
-    v.cells[0][0] = (1ull * lhs.cells[0][0] * rhs.cells[0][0] + 1ull * lhs.cells[0][1] * rhs.cells[1][0]) % modulus;
-    v.cells[0][1] = (1ull * lhs.cells[0][0] * rhs.cells[0][1] + 1ull * lhs.cells[0][1] * rhs.cells[1][1]) % modulus;
-    v.cells[1][0] = (1ull * lhs.cells[1][0] * rhs.cells[0][0] + 1ull * lhs.cells[1][1] * rhs.cells[1][0]) % modulus;
-    v.cells[1][1] = (1ull * lhs.cells[1][0] * rhs.cells[0][1] + 1ull * lhs.cells[1][1] * rhs.cells[1][1]) % modulus;
-    return v;
+    Matrix product;
+    product.cells[0][0] = (1ull * lhs.cells[0][0] * rhs.cells[0][0] + 1ull * lhs.cells[0][1] * rhs.cells[1][0]) % modulus;
+    product.cells[0][1] = (1ull * lhs.cells[0][0] * rhs.cells[0][1] + 1ull * lhs.cells[0][1] * rhs.cells[1][1]) % modulus;
+    product.cells[1][0] = (1ull * lhs.cells[1][0] * rhs.cells[0][0] + 1ull * lhs.cells[1][1] * rhs.cells[1][0]) % modulus;
+    product.cells[1][1] = (1ull * lhs.cells[1][0] * rhs.cells[0][1] + 1ull * lhs.cells[1][1] * rhs.cells[1][1]) % modulus;
+    return product;
 }
 
-void answer(const Matrix& x)
+std::ostream& operator <<(std::ostream& output, const Matrix& m)
 {
-    std::cout << x.cells[0][0] << ' ' << x.cells[0][1] << '\n';
-    std::cout << x.cells[1][0] << ' ' << x.cells[1][1] << '\n';
-    std::cout << '\n';
+    output << m.cells[0][0] << ' ' << m.cells[0][1] << '\n';
+    output << m.cells[1][0] << ' ' << m.cells[1][1] << '\n';
+    return output;
 }
 
-template <typename T>
+struct Query {
+    unsigned l;
+    unsigned r;
+};
+
+std::istream& operator >>(std::istream& input, Query& q)
+{
+    return input >> q.l >> q.r;
+}
+
 class SegmentTree {
+    struct Node {
+        Matrix value;
+
+        void initialize(const Matrix& value)
+        {
+            this->value = value;
+        }
+
+        void update()
+        {}
+
+        void propagate_updates(Node& lhs, Node& rhs)
+        {}
+
+        static Node compose(const Node& lhs, const Node& rhs)
+        {
+            return {
+                .value = lhs.value * rhs.value,
+            };
+        }
+    };
+
 public:
-    template <typename U = T>
-    explicit SegmentTree(const std::vector<U>& data)
-        : size_(1)
+    explicit SegmentTree(unsigned size)
+        : size_(1 << __builtin_clz(1) - __builtin_clz(size) + 1)
+        , nodes_(2 * size_)
+    {}
+
+    template <typename Iterator>
+    SegmentTree(Iterator begin, Iterator end)
+        : SegmentTree(std::distance(begin, end))
     {
-        while (size_ < data.size())
-            size_ *= 2;
+        for (unsigned i = size_; begin != end; ++begin)
+            nodes_[i++].initialize(*begin);
 
-        nodes_.resize(2 * size_);
-
-        for (size_t i = 0; i < data.size(); ++i)
-            nodes_[size_ + i] = data[i];
-
-        for (size_t i = size_ - 1; i > 0; --i)
-            nodes_[i] = nodes_[i<<1|0] * nodes_[i<<1|1];
+        for (unsigned i = size_ - 1; i > 0; --i)
+            nodes_[i] = Node::compose(nodes_[i<<1|0], nodes_[i<<1|1]);
     }
 
-    T product(size_t lower_bound, size_t upper_bound) const
+    void set(unsigned index, const Matrix& value)
     {
-        return product(lower_bound, upper_bound, 1, 0, size_);
+        set({ 1, 0, size_ }, index, value);
+    }
+
+    template <typename... T>
+    void update(unsigned range_begin, unsigned range_end, T&&... arguments)
+    {
+        update({ 1, 0, size_ }, range_begin, range_end, std::forward<T>(arguments)...);
+    }
+
+    Node query(unsigned range_begin, unsigned range_end)
+    {
+        return query({ 1, 0, size_ }, range_begin, range_end);
     }
 
 private:
-    T product(size_t lb, size_t ub, size_t x, size_t lx, size_t rx) const
+    struct Subtree {
+        unsigned root_index;
+        unsigned range_begin;
+        unsigned range_end;
+    };
+
+    void set(const Subtree& subtree, unsigned index, const Matrix& value)
     {
-        if (rx <= lb || ub <= lx)
-            return T();
+        if (subtree.range_begin + 1 == subtree.range_end) {
+            nodes_[subtree.root_index].initialize(value);
+            return;
+        }
 
-        if (lb <= lx && rx <= ub)
-            return nodes_[x];
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
 
-        const size_t mx = (lx + rx) / 2;
-        return product(lb, ub, x<<1|0, lx, mx) * product(lb, ub, x<<1|1, mx, rx);
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        if (index < mid) {
+            set({ subtree.root_index<<1|0, subtree.range_begin, mid }, index, value);
+        } else {
+            set({ subtree.root_index<<1|1, mid, subtree.range_end }, index, value);
+        }
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+    }
+
+    template <typename... T>
+    void update(const Subtree& subtree, unsigned range_begin, unsigned range_end, T&&... arguments)
+    {
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return;
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end) {
+            nodes_[subtree.root_index].update(std::forward<T>(arguments)...);
+            return;
+        }
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        update({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end, std::forward<T>(arguments)...);
+        update({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end, std::forward<T>(arguments)...);
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+    }
+
+    Node query(const Subtree& subtree, unsigned range_begin, unsigned range_end)
+    {
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return {};
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end)
+            return nodes_[subtree.root_index];
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        return Node::compose(
+            query({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end),
+            query({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end)
+        );
     }
 
 private:
-    size_t size_;
+    const unsigned size_;
 
-    std::vector<T> nodes_;
+    std::vector<Node> nodes_;
 
-}; // class SegmentTree<T>
+}; // class SegmentTree
 
-void solve(const std::vector<Matrix>& a, const std::vector<range_t>& q)
+void solve(const std::vector<Matrix>& as, const std::vector<Query>& qs)
 {
-    SegmentTree<Matrix> st(a);
-    for (const range_t& r : q)
-        answer(st.product(r.first - 1, r.second));
+    SegmentTree st(as.begin(), as.end());
+    for (const Query& q : qs)
+        std::cout << st.query(q.l - 1, q.r).value << '\n';
 }
 
 int main()
 {
     std::cin.tie(nullptr)->sync_with_stdio(false);
 
-    std::cin >> modulus;
+    unsigned n, m;
+    std::cin >> modulus >> n >> m;
 
-    size_t n, m;
-    std::cin >> n >> m;
+    std::vector<Matrix> as(n);
+    std::cin >> as;
 
-    std::vector<Matrix> a(n);
-    std::cin >> a;
+    std::vector<Query> qs(m);
+    std::cin >> qs;
 
-    std::vector<range_t> q(m);
-    std::cin >> q;
-
-    solve(a, q);
+    solve(as, qs);
 
     return 0;
 }

@@ -1,8 +1,6 @@
 #include <iostream>
 #include <vector>
 
-using integer = long long;
-
 template <typename T>
 std::istream& operator >>(std::istream& input, std::vector<T>& v)
 {
@@ -13,131 +11,157 @@ std::istream& operator >>(std::istream& input, std::vector<T>& v)
 }
 
 struct Query {
-    size_t i;
+    unsigned i;
     int v;
 };
 
-std::istream& operator >>(std::istream& input, Query& v)
+std::istream& operator >>(std::istream& input, Query& q)
 {
-    return input >> v.i >> v.v;
+    return input >> q.i >> q.v;
 }
 
-void answer(integer x)
-{
-    std::cout << x << '\n';
-}
-
-template <typename T, typename F>
 class SegmentTree {
+    struct Node {
+        long long sum = 0;
+        long long max_prefix = 0;
+        long long max_suffix = 0;
+        long long max_sum = 0;
+
+        void initialize(int value)
+        {
+            sum = value;
+            max_prefix = std::max(0, value);
+            max_suffix = std::max(0, value);
+            max_sum = std::max(0, value);
+        }
+
+        void update()
+        {}
+
+        void propagate_updates(Node& lhs, Node& rhs)
+        {}
+
+        static Node compose(const Node& lhs, const Node& rhs)
+        {
+            return {
+                .sum = lhs.sum + rhs.sum,
+                .max_prefix = std::max(lhs.max_prefix, lhs.sum + rhs.max_prefix),
+                .max_suffix = std::max(lhs.max_suffix + rhs.sum, rhs.max_suffix),
+                .max_sum = std::max(lhs.max_suffix + rhs.max_prefix, std::max(lhs.max_sum, rhs.max_sum)),
+            };
+        }
+    };
+
 public:
-    template <typename U>
-    SegmentTree(const std::vector<U>& data, F&& combine)
-        : size_(data.size())
-        , combine_(std::forward<F>(combine))
-    {
-        data_.reserve(2 * size_);
-        data_.resize(size_);
-        data_.insert(data_.end(), data.cbegin(), data.cend());
+    explicit SegmentTree(unsigned size)
+        : size_(1 << __builtin_clz(1) - __builtin_clz(size) + 1)
+        , nodes_(2 * size_)
+    {}
 
-        for (size_t i = size_ - 1; i > 0; --i) {
-            data_[i] = combine_(data_[i<<1], data_[i<<1|1]);
-        }
+    template <typename Iterator>
+    SegmentTree(Iterator begin, Iterator end)
+        : SegmentTree(std::distance(begin, end))
+    {
+        for (unsigned i = size_; begin != end; ++begin)
+            nodes_[i++].initialize(*begin);
+
+        for (unsigned i = size_ - 1; i > 0; --i)
+            nodes_[i] = Node::compose(nodes_[i<<1|0], nodes_[i<<1|1]);
     }
 
-    size_t size() const noexcept
+    void set(unsigned index, unsigned value)
     {
-        return size_;
+        set({ 1, 0, size_ }, index, value);
     }
 
-    void set(size_t index, T value)
+    template <typename... T>
+    void update(unsigned range_begin, unsigned range_end, T&&... arguments)
     {
-        index += size_;
-        data_[index] = value;
-
-        while (index > 1) {
-            const size_t parent = index >> 1;
-            data_[parent] = combine_(data_[index], data_[index^1]);
-            index = parent;
-        }
+        update({ 1, 0, size_ }, range_begin, range_end, std::forward<T>(arguments)...);
     }
 
-    T combine(size_t left_index, size_t right_index) const
+    Node query(unsigned range_begin, unsigned range_end)
     {
-        size_t lb = size_ + left_index;
-        T left = data_[lb++];
-
-        if (left_index == right_index)
-            return left;
-
-        size_t ub = size_ + right_index + 1;
-        T right = data_[--ub];
-
-        while (lb < ub) {
-            if (lb & 1)
-                left = combine_(left, data_[lb++]);
-
-            if (ub & 1)
-                right = combine_(right, data_[--ub]);
-
-            lb >>= 1, ub >>= 1;
-        }
-
-        return combine_(left, right);
+        return query({ 1, 0, size_ }, range_begin, range_end);
     }
 
 private:
-    const size_t size_;
-    const F combine_;
+    struct Subtree {
+        unsigned root_index;
+        unsigned range_begin;
+        unsigned range_end;
+    };
 
-    std::vector<T> data_;
+    void set(const Subtree& subtree, unsigned index, unsigned value)
+    {
+        if (subtree.range_begin + 1 == subtree.range_end) {
+            nodes_[subtree.root_index].initialize(value);
+            return;
+        }
 
-}; // class SegmentTree<T>
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
 
-void solve(const std::vector<int>& a, const std::vector<Query>& q)
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        if (index < mid) {
+            set({ subtree.root_index<<1|0, subtree.range_begin, mid }, index, value);
+        } else {
+            set({ subtree.root_index<<1|1, mid, subtree.range_end }, index, value);
+        }
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+    }
+
+    template <typename... T>
+    void update(const Subtree& subtree, unsigned range_begin, unsigned range_end, T&&... arguments)
+    {
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return;
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end) {
+            nodes_[subtree.root_index].update(std::forward<T>(arguments)...);
+            return;
+        }
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        update({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end, std::forward<T>(arguments)...);
+        update({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end, std::forward<T>(arguments)...);
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+    }
+
+    Node query(const Subtree& subtree, unsigned range_begin, unsigned range_end)
+    {
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return {};
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end)
+            return nodes_[subtree.root_index];
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        return Node::compose(
+            query({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end),
+            query({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end)
+        );
+    }
+
+private:
+    const unsigned size_;
+
+    std::vector<Node> nodes_;
+
+}; // class SegmentTree
+
+void solve(const std::vector<int>& as, const std::vector<Query>& qs)
 {
-    const size_t n = a.size();
+    const unsigned n = as.size();
 
-    struct Node {
-        size_t i;
-        integer t;
-        integer p;
-        integer s;
-        integer x;
-
-        Node() = default;
-
-        Node(size_t i, int t)
-            : i(i)
-            , t(t)
-            , p(std::max(t, 0))
-            , s(std::max(t, 0))
-            , x(std::max(t, 0))
-        {}
-    };
-
-    std::vector<Node> b(n);
-    for (size_t i = 0; i < n; ++i)
-        b[i] = Node(i, a[i]);
-
-    const auto combine_i = [](const Node& a, const Node& b) -> Node {
-        Node c;
-        c.i = a.i;
-        c.t = a.t + b.t;
-        c.p = std::max(a.p, a.t + b.p);
-        c.s = std::max(a.s + b.t, b.s);
-        c.x = std::max(std::max(a.x, b.x), a.s + b.p);
-        return c;
-    };
-
-    const auto combine = [&combine_i](const Node& a, const Node& b) {
-        return a.i < b.i ? combine_i(a, b) : combine_i(b, a);
-    };
-
-    SegmentTree<Node, decltype(combine)> st(b, std::move(combine));
-    answer(st.combine(0, n - 1).x);
-    for (const Query& r : q) {
-        st.set(r.i, Node(r.i, r.v));
-        answer(st.combine(0, n - 1).x);
+    SegmentTree st(as.begin(), as.end());
+    std::cout << st.query(0, n).max_sum << '\n';
+    for (const Query& q : qs) {
+        st.set(q.i, q.v);
+        std::cout << st.query(0, n).max_sum << '\n';
     }
 }
 
@@ -145,16 +169,16 @@ int main()
 {
     std::cin.tie(nullptr)->sync_with_stdio(false);
 
-    size_t n, m;
+    unsigned n, m;
     std::cin >> n >> m;
 
-    std::vector<int> a(n);
-    std::cin >> a;
+    std::vector<int> as(n);
+    std::cin >> as;
 
-    std::vector<Query> q(m);
-    std::cin >> q;
+    std::vector<Query> qs(m);
+    std::cin >> qs;
 
-    solve(a, q);
+    solve(as, qs);
 
     return 0;
 }

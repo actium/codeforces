@@ -12,105 +12,173 @@ std::istream& operator >>(std::istream& input, std::vector<T>& v)
 
 struct Query {
     unsigned t;
-    unsigned x;
-    unsigned y;
+    union {
+        struct {
+            unsigned i;
+            unsigned v;
+        };
+        unsigned x;
+    };
 };
 
-std::istream& operator >>(std::istream& input, Query& v)
+std::istream& operator >>(std::istream& input, Query& q)
 {
-    input >> v.t >> v.x;
-    return v.t == 1 ? input >> v.y : input;
+    input >> q.t;
+    return q.t == 1 ? input >> q.i >> q.v : input >> q.x;
 }
 
-void answer(size_t x)
-{
-    std::cout << x << '\n';
-}
-
-void no_answer()
-{
-    std::cout << -1 << '\n';
-}
-
-template <typename T>
 class SegmentTree {
+    struct Node {
+        unsigned max = 0;
+
+        void initialize(unsigned value)
+        {
+            max = value;
+        }
+
+        void update()
+        {}
+
+        void propagate_updates(Node& lhs, Node& rhs)
+        {}
+
+        static Node compose(const Node& lhs, const Node& rhs)
+        {
+            return {
+                .max = std::max(lhs.max, rhs.max),
+            };
+        }
+    };
+
 public:
-    template <typename U = T>
-    explicit SegmentTree(const std::vector<U>& data)
-        : size_(1)
+    explicit SegmentTree(unsigned size)
+        : size_(1 << __builtin_clz(1) - __builtin_clz(size) + 1)
+        , nodes_(2 * size_)
+    {}
+
+    template <typename Iterator>
+    SegmentTree(Iterator begin, Iterator end)
+        : SegmentTree(std::distance(begin, end))
     {
-        while (size_ < data.size())
-            size_ *= 2;
+        for (unsigned i = size_; begin != end; ++begin)
+            nodes_[i++].initialize(*begin);
 
-        nodes_.resize(2 * size_);
-
-        for (size_t i = 0; i < data.size(); ++i)
-            nodes_[size_ + i] = data[i];
-
-        for (size_t i = size_ - 1; i > 0; --i)
-            nodes_[i] = std::max(nodes_[i<<1|0], nodes_[i<<1|1]);
+        for (unsigned i = size_ - 1; i > 0; --i)
+            nodes_[i] = Node::compose(nodes_[i<<1|0], nodes_[i<<1|1]);
     }
 
-    void set(size_t index, T value)
+    void set(unsigned index, unsigned value)
     {
-        set(index, value, 1, 0, size_);
+        set({ 1, 0, size_ }, index, value);
     }
 
-    size_t lower_bound(T target) const
+    template <typename... T>
+    void update(unsigned range_begin, unsigned range_end, T&&... arguments)
     {
-        return lower_bound(target, 1, 0, size_);
+        update({ 1, 0, size_ }, range_begin, range_end, std::forward<T>(arguments)...);
+    }
+
+    Node query(unsigned range_begin, unsigned range_end)
+    {
+        return query({ 1, 0, size_ }, range_begin, range_end);
+    }
+
+    int search(unsigned target) const
+    {
+        const unsigned x = search({ 1, 0, size_ }, target);
+        return x < size_ ? x : -1;
     }
 
 private:
-    void set(size_t index, T value, size_t x, size_t lx, size_t rx)
+    struct Subtree {
+        unsigned root_index;
+        unsigned range_begin;
+        unsigned range_end;
+    };
+
+    void set(const Subtree& subtree, unsigned index, unsigned value)
     {
-        if (lx + 1 == rx) {
-            nodes_[x] = value;
+        if (subtree.range_begin + 1 == subtree.range_end) {
+            nodes_[subtree.root_index].initialize(value);
             return;
         }
 
-        const size_t mx = (lx + rx) / 2;
-        if (index < mx) {
-            set(index, value, x<<1|0, lx, mx);
-        } else {
-            set(index, value, x<<1|1, mx, rx);
-        }
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
 
-        nodes_[x] = std::max(nodes_[x<<1|0], nodes_[x<<1|1]);
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        if (index < mid) {
+            set({ subtree.root_index<<1|0, subtree.range_begin, mid }, index, value);
+        } else {
+            set({ subtree.root_index<<1|1, mid, subtree.range_end }, index, value);
+        }
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
     }
 
-    size_t lower_bound(T v, size_t x, size_t lx, size_t rx) const
+    template <typename... T>
+    void update(const Subtree& subtree, unsigned range_begin, unsigned range_end, T&&... arguments)
     {
-        if (nodes_[x] < v)
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return;
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end) {
+            nodes_[subtree.root_index].update(std::forward<T>(arguments)...);
+            return;
+        }
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        update({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end, std::forward<T>(arguments)...);
+        update({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end, std::forward<T>(arguments)...);
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+    }
+
+    Node query(const Subtree& subtree, unsigned range_begin, unsigned range_end)
+    {
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return {};
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end)
+            return nodes_[subtree.root_index];
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        return Node::compose(
+            query({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end),
+            query({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end)
+        );
+    }
+
+    unsigned search(const Subtree& subtree, unsigned target) const
+    {
+        if (nodes_[subtree.root_index].max < target)
             return size_;
 
-        if (lx + 1 == rx)
-            return lx;
+        if (subtree.range_begin + 1 == subtree.range_end)
+            return subtree.range_begin;
 
-        const size_t mx = (lx + rx) / 2;
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
 
-        const size_t p = lower_bound(v, x<<1|0, lx, mx);
-        return p < size_ ? p : lower_bound(v, x<<1|1, mx, rx);
+        const unsigned x = search({ subtree.root_index<<1|0, subtree.range_begin, mid }, target);
+        return x < size_ ? x : search({ subtree.root_index<<1|1, mid, subtree.range_end }, target);
     }
 
 private:
-    size_t size_;
+    const unsigned size_;
 
-    std::vector<T> nodes_;
+    std::vector<Node> nodes_;
 
-}; // class SegmentTree<T>
+}; // class SegmentTree
 
-void solve(const std::vector<unsigned>& a, const std::vector<Query>& q)
+void solve(const std::vector<unsigned>& as, const std::vector<Query>& qs)
 {
-    const size_t n = a.size();
-
-    SegmentTree<unsigned> st(a);
-    for (const Query& r : q) {
-        if (r.t == 1) {
-            st.set(r.x, r.y);
+    SegmentTree st(as.begin(), as.end());
+    for (const Query& q : qs) {
+        if (q.t == 1) {
+            st.set(q.i, q.v);
         } else {
-            const size_t p = st.lower_bound(r.x);
-            p < n ? answer(p) : no_answer();
+            std::cout << st.search(q.x) << '\n';
         }
     }
 }
@@ -119,16 +187,16 @@ int main()
 {
     std::cin.tie(nullptr)->sync_with_stdio(false);
 
-    size_t n, m;
+    unsigned n, m;
     std::cin >> n >> m;
 
-    std::vector<unsigned> a(n);
-    std::cin >> a;
+    std::vector<unsigned> as(n);
+    std::cin >> as;
 
-    std::vector<Query> q(m);
-    std::cin >> q;
+    std::vector<Query> qs(m);
+    std::cin >> qs;
 
-    solve(a, q);
+    solve(as, qs);
 
     return 0;
 }

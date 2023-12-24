@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <iostream>
 #include <vector>
 
@@ -11,111 +10,179 @@ std::istream& operator >>(std::istream& input, std::vector<T>& v)
     return input;
 }
 
-void answer(const std::vector<unsigned>& v)
-{
-    const char* separator = "";
-    for (const unsigned x : v) {
-        std::cout << separator << x;
-        separator = " ";
-    }
-    std::cout << '\n';
-}
-
-template <typename T>
 class SegmentTree {
+    struct Node {
+        unsigned range_size = 1;
+        unsigned count = 0;
+
+        bool inverted = 0;       // pending cumulative update for subnodes
+
+        void initialize(unsigned value)
+        {
+            count = value;
+        }
+
+        void update()
+        {
+            count = range_size - count;
+            inverted = !inverted;
+        }
+
+        void propagate_updates(Node& lhs, Node& rhs)
+        {
+            if (inverted) {
+                lhs.update();
+                rhs.update();
+                inverted = false;
+            }
+        }
+
+        static Node compose(const Node& lhs, const Node& rhs)
+        {
+            return {
+                .range_size = lhs.range_size + rhs.range_size,
+                .count = lhs.count + rhs.count,
+            };
+        }
+    };
+
 public:
-    explicit SegmentTree(size_t size)
-        : size_(1)
-    {
-        while (size_ < size)
-            size_ *= 2;
+    explicit SegmentTree(unsigned size)
+        : size_(1 << __builtin_clz(1) - __builtin_clz(size) + 1)
+        , nodes_(2 * size_)
+    {}
 
-        nodes_.resize(2 * size_);
+    template <typename Iterator>
+    SegmentTree(Iterator begin, Iterator end)
+        : SegmentTree(std::distance(begin, end))
+    {
+        for (unsigned i = size_; begin != end; ++begin)
+            nodes_[i++].initialize(*begin);
+
+        for (unsigned i = size_ - 1; i > 0; --i)
+            nodes_[i] = Node::compose(nodes_[i<<1|0], nodes_[i<<1|1]);
     }
 
-    void invert(size_t index)
+    template <typename... T>
+    void update(unsigned range_begin, unsigned range_end, T&&... arguments)
     {
-        invert(index, 1, 0, size_);
+        update({ 1, 0, size_ }, range_begin, range_end, std::forward<T>(arguments)...);
     }
 
-    T sum(size_t lower_bound, size_t upper_bound) const
+    Node query(unsigned range_begin, unsigned range_end)
     {
-        return sum(lower_bound, upper_bound, 1, 0, size_);
+        return query(range_begin, range_end, { 1, 0, size_ });
+    }
+
+    unsigned search(unsigned target)
+    {
+        return search({ 1, 0, size_ }, target);
     }
 
 private:
-    void invert(size_t index, size_t x, size_t lx, size_t rx)
+    struct Subtree {
+        unsigned root_index;
+        unsigned range_begin;
+        unsigned range_end;
+    };
+
+    template <typename... T>
+    void update(const Subtree& subtree, unsigned range_begin, unsigned range_end, T&&... arguments)
     {
-        if (lx + 1 == rx) {
-            nodes_[x] ^= 1;
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return;
+
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end) {
+            nodes_[subtree.root_index].update(std::forward<T>(arguments)...);
             return;
         }
 
-        const size_t mx = (lx + rx) / 2;
-        if (index < mx) {
-            invert(index, x<<1|0, lx, mx);
-        } else {
-            invert(index, x<<1|1, mx, rx);
-        }
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
 
-        nodes_[x] = nodes_[x<<1|0] + nodes_[x<<1|1];
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        update({ subtree.root_index<<1|0, subtree.range_begin, mid }, range_begin, range_end, std::forward<T>(arguments)...);
+        update({ subtree.root_index<<1|1, mid, subtree.range_end }, range_begin, range_end, std::forward<T>(arguments)...);
+        nodes_[subtree.root_index] = Node::compose(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
     }
 
-    T sum(size_t lb, size_t ub, size_t x, size_t lx, size_t rx) const
+    Node query(unsigned range_begin, unsigned range_end, const Subtree& subtree)
     {
-        if (rx <= lb || ub <= lx)
-            return 0;
+        if (range_end <= subtree.range_begin || subtree.range_end <= range_begin)
+            return {};
 
-        if (lb <= lx && rx <= ub)
-            return nodes_[x];
+        if (range_begin <= subtree.range_begin && subtree.range_end <= range_end)
+            return nodes_[subtree.root_index];
 
-        const size_t mx = (lx + rx) / 2;
-        return sum(lb, ub, x<<1|0, lx, mx) + sum(lb, ub, x<<1|1, mx, rx);
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        return Node::compose(
+            query(range_begin, range_end, { subtree.root_index<<1|0, subtree.range_begin, mid }),
+            query(range_begin, range_end, { subtree.root_index<<1|1, mid, subtree.range_end })
+        );
+    }
+
+    unsigned search(const Subtree& subtree, unsigned target)
+    {
+        if (subtree.range_begin + 1 == subtree.range_end)
+            return subtree.range_begin;
+
+        nodes_[subtree.root_index].propagate_updates(nodes_[subtree.root_index<<1|0], nodes_[subtree.root_index<<1|1]);
+
+        const unsigned mid = (subtree.range_begin + subtree.range_end) / 2;
+        if (target < nodes_[subtree.root_index<<1|0].count)
+            return search({ subtree.root_index<<1|0, subtree.range_begin, mid }, target);
+
+        target -= nodes_[subtree.root_index<<1|0].count;
+        return search({ subtree.root_index<<1|1, mid, subtree.range_end }, target);
     }
 
 private:
-    size_t size_;
+    const unsigned size_;
 
-    std::vector<T> nodes_;
+    std::vector<Node> nodes_;
 
-}; // class SegmentTree<T>
+}; // class SegmentTree
 
-void solve(std::vector<unsigned>& a)
+void solve(const std::vector<unsigned>& as)
 {
-    const size_t m = a.size(), n = m / 2;
+    const unsigned m = as.size(), n = m / 2;
 
-    std::vector<unsigned> r(n);
+    std::vector<unsigned> xs(n);
 
-    SegmentTree<unsigned> st(m);
-    for (unsigned t = 0; t < 2; ++t) {
-        std::vector<size_t> v(n, m);
-        for (size_t i = 0; i < m; ++i) {
-            const unsigned x = a[i] - 1;
-            if (v[x] == m) {
-                v[x] = i;
+    SegmentTree st(m);
+
+    const auto process = [&](auto it) {
+        std::vector<unsigned> vs(n, m);
+        for (unsigned i = 0; i < m; ++i) {
+            const unsigned a = *it++ - 1;
+            if (vs[a] == m) {
+                vs[a] = i;
             } else {
-                r[x] += st.sum(v[x], i) - 1;
+                xs[a] += st.query(vs[a], i).count - 1;
             }
-            st.invert(v[x]);
+            st.update(vs[a], vs[a] + 1);
         }
+    };
 
-        std::reverse(a.begin(), a.end());
-    }
+    process(as.begin());
+    process(as.rbegin());
 
-    answer(r);
+    for (unsigned i = 0; i < n; ++i)
+        std::cout << xs[i] << ' ';
 }
 
 int main()
 {
     std::cin.tie(nullptr)->sync_with_stdio(false);
 
-    size_t n;
+    unsigned n;
     std::cin >> n;
 
-    std::vector<unsigned> a(2 * n);
-    std::cin >> a;
+    std::vector<unsigned> as(2 * n);
+    std::cin >> as;
 
-    solve(a);
+    solve(as);
 
     return 0;
 }
