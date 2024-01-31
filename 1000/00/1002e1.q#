@@ -1,0 +1,26 @@
+namespace Solution {
+    open Microsoft.Quantum.Primitive;
+    open Microsoft.Quantum.Canon;
+
+    operation Solve (n: Int, f: ((Qubit[], Qubit) => ())) : Int[] {
+        mutable a = new Int[n];
+        using (qs = Qubit[n+1]) {
+            X(qs[n]);
+
+            ApplyToEach(H, qs);
+            f(qs[0..n-1], qs[n]);
+            ApplyToEach(H, qs[0..n-1]);
+
+            for (i in 0..n-1) {
+                if (M(qs[i]) == One) {
+                    set a w/= i <- 1;
+                } else {
+                    set a w/= i <- 0;
+                }
+            }
+
+            ResetAll(qs);
+        }
+        return a;
+    }
+}
