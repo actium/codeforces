@@ -23,48 +23,130 @@ std::istream& operator >>(std::istream& input, Query& q)
     return input;
 }
 
+template <typename Node, typename Update>
 class SegmentTree {
-    struct Node {
-        const long long range_begin;
-        const long long range_end;
-
-        long long sum = 0;
-        long long prefix = 0;
-
-        std::optional<int> common_delta;
-
-        Node* subnodes[2] = {};
-
-        Node(unsigned range_begin, unsigned range_end)
-            : range_begin(range_begin)
-            , range_end(range_end)
+    class Segment {
+    public:
+        Segment(unsigned range_begin, unsigned range_end)
+            : range_begin_(range_begin)
+            , range_end_(range_end)
+            , node_(range_end - range_begin)
         {}
 
-        void update(int delta)
+        template <typename... Ts>
+        void update_point(unsigned index, Ts&&... arguments)
         {
-            sum = int(range_end - range_begin) * delta;
-            prefix = std::max(sum, 0ll);
-            common_delta = delta;
+            if (range_begin_ + 1 == range_end_) {
+                aggregate_updates(Update(std::forward<Ts>(arguments)...));
+                return;
+            }
+
+            propagate_updates();
+
+            update_point(select_subsegment(index), index, std::forward<Ts>(arguments)...);
+            node_ = Node(subsegments_[0]->node_, subsegments_[1]->node_);
+        }
+
+        template <typename... Ts>
+        void update_range(unsigned range_begin, unsigned range_end, Ts&&... arguments)
+        {
+            if (range_end <= range_begin_ || range_end_ <= range_begin)
+                return;
+
+            if (range_begin <= range_begin_ && range_end_ <= range_end) {
+                aggregate_updates(Update(std::forward<Ts>(arguments)...));
+                return;
+            }
+
+            propagate_updates();
+
+            subsegments_[0]->update_range(range_begin, range_end, std::forward<Ts>(arguments)...);
+            subsegments_[1]->update_range(range_begin, range_end, std::forward<Ts>(arguments)...);
+            node_ = Node(subsegments_[0]->node_, subsegments_[1]->node_);
+        }
+
+        std::optional<Node> query_point(unsigned index)
+        {
+            if (range_begin_ + 1 == range_end_)
+                return node_;
+
+            propagate_updates();
+
+            return select_subsegment(index)->query_point(index);
+        }
+
+        std::optional<Node> query_range(unsigned range_begin, unsigned range_end)
+        {
+            if (range_end <= range_begin_ || range_end_ <= range_begin)
+                return std::nullopt;
+
+            if (range_begin <= range_begin_ && range_end_ <= range_end)
+                return node_;
+
+            propagate_updates();
+
+            const std::optional<Node> lhs = subsegments_[0]->query_range(range_begin, range_end);
+            const std::optional<Node> rhs = subsegments_[1]->query_range(range_begin, range_end);
+            if (lhs && rhs)
+                return Node(*lhs, *rhs);
+
+            return lhs ? lhs : rhs;
+        }
+
+        template <typename F>
+        std::optional<unsigned> search(F&& predicate)
+        {
+            if (range_begin_ + 1 == range_end_)
+                return range_begin_;
+
+            propagate_updates();
+
+            return predicate(subsegments_[0]->range_begin_, subsegments_[0]->range_end_, subsegments_[0]->node_) ?
+                subsegments_[0]->search(predicate) : subsegments_[1]->search(predicate);
+        }
+
+    private:
+        Segment* select_subsegment(unsigned index)
+        {
+            return index < subsegments_[0]->range_end_ ? subsegments_[0] : subsegments_[1];
+        }
+
+        void aggregate_updates(const Update& update)
+        {
+            if (!update_)
+                update_ = update;
+            else
+                update_->aggregate(update);
+
+            update.apply(node_);
         }
 
         void propagate_updates()
         {
-            if (range_begin + 1 == range_end)
-                return;
+            const unsigned mid_point = (range_begin_ + range_end_) / 2;
+            if (subsegments_[0] == nullptr)
+                subsegments_[0] = new Segment(range_begin_, mid_point);
+            if (subsegments_[1] == nullptr)
+                subsegments_[1] = new Segment(mid_point, range_end_);
 
-            if (common_delta) {
-                subnodes[0]->update(*common_delta);
-                subnodes[1]->update(*common_delta);
-                common_delta = std::nullopt;
+            if (update_) {
+                subsegments_[0]->aggregate_updates(*update_);
+                subsegments_[1]->aggregate_updates(*update_);
+
+                update_ = std::nullopt;
             }
         }
 
-        void compose()
-        {
-            sum = subnodes[0]->sum + subnodes[1]->sum;
-            prefix = std::max(subnodes[0]->prefix, subnodes[0]->sum + subnodes[1]->prefix);
-        }
-    };
+    private:
+        const unsigned range_begin_;
+        const unsigned range_end_;
+
+        Node node_;
+        std::optional<Update> update_;
+
+        Segment* subsegments_[2] = {};
+
+    }; // class Segment
 
 public:
     explicit SegmentTree(unsigned size)
@@ -72,65 +154,81 @@ public:
         , root_(0, size)
     {}
 
-    void update(unsigned range_begin, unsigned range_end, int delta)
+    template <typename... Ts>
+    void update_point(unsigned index, Ts&&... arguments)
     {
-        update(&root_, range_begin, range_end, delta);
+        root_.update_point(index, std::forward<Ts>(arguments)...);
     }
 
-    unsigned search(unsigned height)
+    template <typename... Ts>
+    void update_range(unsigned range_begin, unsigned range_end, Ts&&... arguments)
     {
-        return root_.prefix <= height ? size_ : search(&root_, height);
+        root_.update_range(range_begin, range_end, std::forward<Ts>(arguments)...);
     }
 
-private:
-    void update(Node* subtree, unsigned range_begin, unsigned range_end, int delta)
+    std::optional<Node> query_point(unsigned index)
     {
-        if (range_end <= subtree->range_begin || subtree->range_end <= range_begin)
-            return;
-
-        if (range_begin <= subtree->range_begin && subtree->range_end <= range_end) {
-            subtree->update(delta);
-            return;
-        }
-
-        const unsigned mid = (subtree->range_begin + subtree->range_end) / 2;
-
-        if (subtree->subnodes[0] == nullptr)
-            subtree->subnodes[0] = new Node(subtree->range_begin, mid);
-        if (subtree->subnodes[1] == nullptr)
-            subtree->subnodes[1] = new Node(mid, subtree->range_end);
-
-        subtree->propagate_updates();
-
-        update(subtree->subnodes[0], range_begin, range_end, delta);
-        update(subtree->subnodes[1], range_begin, range_end, delta);
-        subtree->compose();
+        return root_.query_point(index);
     }
 
-    unsigned search(Node* subtree, unsigned height)
+    std::optional<Node> query_range(unsigned range_begin, unsigned range_end)
     {
-        if (subtree->range_begin + 1 == subtree->range_end)
-            return subtree->range_begin;
+        return root_.query_range(range_begin, range_end);
+    }
 
-        const unsigned mid = (subtree->range_begin + subtree->range_end) / 2;
-
-        if (subtree->subnodes[0] == nullptr)
-            subtree->subnodes[0] = new Node(subtree->range_begin, mid);
-        if (subtree->subnodes[1] == nullptr)
-            subtree->subnodes[1] = new Node(mid, subtree->range_end);
-
-        subtree->propagate_updates();
-
-        return subtree->subnodes[0]->prefix <= height ?
-            search(subtree->subnodes[1], height - subtree->subnodes[0]->sum) : search(subtree->subnodes[0], height);
+    template <typename F>
+    std::optional<unsigned> search(F&& predicate)
+    {
+        return root_.search(predicate);
     }
 
 private:
     const unsigned size_;
 
-    Node root_;
+    Segment root_;
 
-}; // class SegmentTree
+}; // class SegmentTree<Node, Update>
+
+struct Node {
+    unsigned range_size;
+
+    int sum = 0;
+    int prefix = 0;
+
+    explicit Node(unsigned range_size)
+        : range_size(range_size)
+    {}
+
+    Node(const Node& lhs, const Node& rhs)
+        : range_size(lhs.range_size + rhs.range_size)
+        , sum(lhs.sum + rhs.sum)
+        , prefix(std::max(lhs.prefix, lhs.sum + rhs.prefix))
+    {}
+
+    void update(int delta)
+    {
+        sum = delta * range_size;
+        prefix = std::max(0, sum);
+    }
+};
+
+struct Update {
+    int delta = 0;
+
+    explicit Update(int delta)
+        : delta(delta)
+    {}
+
+    void aggregate(const Update& update)
+    {
+        delta = update.delta;
+    }
+
+    void apply(Node& target_node) const
+    {
+        target_node.update(delta);
+    }
+};
 
 int main()
 {
@@ -139,14 +237,24 @@ int main()
     unsigned n;
     std::cin >> n;
 
-    SegmentTree st(n);
+    SegmentTree<Node, Update> st(1 + n + 1);
 
     Query q;
     for (std::cin >> q; q.t != 'E'; std::cin >> q) {
         if (q.t == 'I') {
-            st.update(q.a-1, q.b, q.d);
+            st.update_range(q.a, q.b + 1, q.d);
         } else {
-            std::cout << st.search(q.h) << '\n';
+            int height = q.h;
+
+            const auto predicate = [&](unsigned, unsigned, const Node& node) {
+                if (node.prefix > height)
+                    return true;
+
+                height -= node.sum;
+                return false;
+            };
+
+            std::cout << static_cast<int>(*st.search(predicate) - 1) << '\n';
         }
     }
 
