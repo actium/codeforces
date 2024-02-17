@@ -1,0 +1,10 @@
+main =>
+    A = read_int(),
+    B = read_int(),
+    C = read_int(),
+    L = [(X, Y) : X in 1..1000, Y in 1..1000, A * X + B * Y = C],
+    println(L.length),
+    foreach ((X, Y) in L)
+        printf("%d %d\n", X, Y)
+    end
+.
