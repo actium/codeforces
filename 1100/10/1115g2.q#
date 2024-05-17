@@ -1,0 +1,14 @@
+namespace Solution {
+    open Microsoft.Quantum.Primitive;
+    open Microsoft.Quantum.Canon;
+
+    operation Solve (x: Qubit[], y: Qubit) : Unit {
+        body (...) {
+            X(y);
+
+            let f = ControlledOnInt(0, X);
+            f(x, y);
+        }
+        adjoint auto;
+    }
+}
