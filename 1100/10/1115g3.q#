@@ -1,0 +1,26 @@
+namespace Solution {
+    open Microsoft.Quantum.Primitive;
+    open Microsoft.Quantum.Canon;
+
+    operation EvaluateEqualityClauses (x: Qubit[], r: Qubit[]) : Unit {
+        body (...) {
+            let n = Length(x);
+            for (i in 0..n/2-1) {
+                CNOT(x[i], r[i]);
+                CNOT(x[n-1-i], r[i]);
+                X(r[i]);
+            }
+        }
+        adjoint auto;
+    }
+
+    operation Solve (x: Qubit[], y: Qubit) : Unit {
+        body (...) {
+            let n = Length(x);
+            using (r = Qubit[n/2]) {
+                WithA(EvaluateEqualityClauses(x, _), Controlled X(_, y), r);
+            }
+        }
+        adjoint auto;
+    }
+}
