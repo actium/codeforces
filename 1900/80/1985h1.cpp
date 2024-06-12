@@ -18,69 +18,139 @@ void answer(unsigned x)
     std::cout << x << '\n';
 }
 
-struct Component {
-    size_t min_row = oo;
-    size_t max_row = 0;
-    size_t min_column = oo;
-    size_t max_column = 0;
-    size_t size = 0;
-};
+class DisjointSetUnion {
+public:
+    explicit DisjointSetUnion(unsigned size)
+        : data_(size, -1)
+    {}
 
-void extract_component(std::vector<std::string>& g, size_t i, size_t j, Component& c)
-{
-    if (i < g.size() && j < g[0].size() && g[i][j] == '#') {
-        c.min_row = std::min(c.min_row, i);
-        c.max_row = std::max(c.max_row, i);
-        c.min_column = std::min(c.min_column, j);
-        c.max_column = std::max(c.max_column, j);
-
-        ++c.size;
-
-        g[i][j] = '@';
-
-        extract_component(g, i-1, j, c);
-        extract_component(g, i, j+1, c);
-        extract_component(g, i+1, j, c);
-        extract_component(g, i, j-1, c);
+    unsigned size(unsigned x) noexcept
+    {
+        return -data_[locate(x)];
     }
-}
+
+    unsigned locate(unsigned x) noexcept
+    {
+        const int rx = data_[x];
+        return rx < 0 ? x : locate(rx);
+    }
+
+    void unite(unsigned u, unsigned v)
+    {
+        unsigned ru = locate(u), rv = locate(v);
+        if (ru == rv)
+            return;
+
+        if (data_[ru] > data_[rv])
+            std::swap(ru, rv);
+
+        save(ru);
+        save(rv);
+
+        data_[ru] += data_[rv];
+        data_[rv] = ru;
+    }
+
+    void persist()
+    {
+        points_.push_back(states_.size());
+    }
+
+    void rollback()
+    {
+        load(points_.back());
+        points_.pop_back();
+    }
+
+private:
+    unsigned size_;
+
+    std::vector<int> data_;
+
+private:
+    void save(unsigned x)
+    {
+        State state;
+        state.index = x;
+        state.value = data_[x];
+        states_.push_back(state);
+    }
+
+    void load(size_t t)
+    {
+        while (states_.size() > t) {
+            const State& state = states_.back();
+            data_[state.index] = state.value;
+            states_.pop_back();
+        }
+    }
+
+private:
+    struct State {
+        unsigned index;
+        int value;
+    };
+
+    std::vector<State> states_;
+    std::vector<size_t> points_;
+
+}; // class DisjointSetUnion
 
 void solve(std::vector<std::string>& g)
 {
     const size_t n = g.size(), m = g[0].size();
 
-    std::vector<unsigned> r(n), c(m);
-
-    const auto update = [](std::vector<unsigned>& v, size_t lb, size_t ub, unsigned k) {
-        for (size_t i = lb; i <= ub; ++i)
-            v[i] += k;
-    };
-
+    DisjointSetUnion dsu(n * m);
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < m; ++j) {
-            if (g[i][j] == '.') {
-                update(r, i, i, 1);
-                update(c, j, j, 1);
-            }
+            if (g[i][j] == '.')
+                continue;
 
-            if (g[i][j] == '#') {
-                Component q;
-                extract_component(g, i, j, q);
-
-                update(r, q.min_row - (q.min_row > 0), q.max_row + (q.max_row < n-1), q.size);
-                update(c, q.min_column - (q.min_column > 0), q.max_column + (q.max_column < m-1), q.size);
-            }
+            if (i > 0 && g[i-1][j] == '#')
+                dsu.unite(i * m + j, (i - 1) * m + j);
+            if (i + 1 < n && g[i+1][j] == '#')
+                dsu.unite(i * m + j, (i + 1) * m + j);
+            if (j > 0 && g[i][j-1] == '#')
+                dsu.unite(i * m + j, i * m + j - 1);
+            if (j + 1 < m && g[i][j+1] == '#')
+                dsu.unite(i * m + j, i * m + j + 1);
         }
     }
 
     unsigned k = 0;
-    {
-        for (size_t i = 0; i < n; ++i)
-            k = std::max(k, r[i]);
+    for (size_t i = 0; i < n; ++i) {
+        dsu.persist();
 
-        for (size_t i = 0; i < m; ++i)
-            k = std::max(k, c[i]);
+        for (size_t j = 0; j < m; ++j) {
+            if (i > 0 && g[i-1][j] == '#')
+                dsu.unite(i * m + j, (i - 1) * m + j);
+
+            if (i + 1 < n && g[i+1][j] == '#')
+                dsu.unite(i * m + j, (i + 1) * m + j);
+
+            dsu.unite(i * m + j, i * m);
+        }
+        k = std::max(k, dsu.size(i * m));
+
+        dsu.rollback();
     }
+    for (size_t j = 0; j < m; ++j) {
+        dsu.persist();
+
+        for (size_t i = 0; i < n; ++i) {
+            if (j > 0 && g[i][j-1] == '#')
+                dsu.unite(i * m + j, i * m + j - 1);
+
+            if (j + 1 < m && g[i][j+1] == '#')
+                dsu.unite(i * m + j, i * m + j + 1);
+
+            dsu.unite(i * m + j, j);
+        }
+        k = std::max(k, dsu.size(j));
+
+        dsu.rollback();
+    }
+
     answer(k);
 }
 
