@@ -1,0 +1,5 @@
+main =>
+    S = read_line(),
+    K = S.length // 2,
+    println(S.slice(1, K).reverse() ++ S.slice(K + 1).reverse())
+.
