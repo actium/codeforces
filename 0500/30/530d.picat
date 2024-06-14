@@ -1,0 +1,17 @@
+import ordset.
+
+main =>
+    S = 1 .. 1000,
+
+    N = read_int(),
+    foreach (_ in 1 .. N)
+        A = read_int(),
+        B = read_int(),
+        S := subtract(S, A .. B)
+    end,
+
+    print(S.length),
+    foreach (X in S)
+        writef(" %d", X)
+    end
+.
