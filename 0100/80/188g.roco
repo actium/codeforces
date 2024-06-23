@@ -1,0 +1,64 @@
+co read_array
+{
+    iin [[101]]
+
+    eq [102] [101] [0]
+    if [102] ac
+
+    inc [101]
+}
+
+co swap
+{
+    set [102] [[103]]
+    set [[103]] [[104]]
+    set [[104]] [102]
+    ac
+}
+
+co sort
+{
+    gt [102] [104] [0]
+    if [102] ac
+
+    gt [102] [[103]] [[104]]
+    if [102] ca swap
+
+    inc [103]
+    inc [104]
+}
+
+co sort_array
+{
+    set [103] 1
+    set [104] 2
+    ca sort
+
+    dec [101]
+    eq [102] [101] 0
+    if [102] ac
+}
+
+co write_array
+{
+    iout [[101]]
+    cout 32
+
+    eq [102] [101] [0]
+    if [102] ac
+
+    inc [101]
+}
+
+iin [0]
+
+set [101] 1
+ca read_array
+
+set [101] [0]
+ca sort_array
+
+set [101] 1
+ca write_array
+
+ac
