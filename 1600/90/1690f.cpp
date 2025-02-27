@@ -19,51 +19,30 @@ void answer(integer x)
     std::cout << x << '\n';
 }
 
-void search(const std::string& s, const std::vector<unsigned>& p, size_t u, size_t x, unsigned k, std::vector<unsigned>& d)
-{
-    if (s[u] == s[x])
-        d.push_back(k);
-
-    if (u != x)
-        search(s, p, p[u]-1, x, k+1, d);
-}
-
-unsigned cycle_length(const std::vector<unsigned>& d)
-{
-    const unsigned m = d.back();
-
-    std::vector<bool> v(1 + m);
-    for (const unsigned x : d)
-        v[x] = true;
-
-    const auto check = [&](unsigned x) {
-        if (m % x != 0)
-            return false;
-
-        for (unsigned i = x; i < m; i += x) {
-            if (!v[i])
-                return false;
-        }
-        return true;
-    };
-
-    for (const unsigned x : d) {
-        if (check(x))
-            return x;
-    }
-    return m;
-}
-
 void solve(const std::string& s, const std::vector<unsigned>& p)
 {
     const size_t n = s.size();
 
     integer x = 1;
-    for (size_t i = 0; i < n; ++i) {
-        std::vector<unsigned> d;
-        search(s, p, p[i]-1, i, 1, d);
+    {
+        std::vector<bool> v(n);
+        for (size_t i = 0; i < n; ++i) {
+            std::string t;
+            while (!v[i]) {
+                t.push_back(s[i]);
+                v[i] = true;
+                i = p[i] - 1;
+            }
 
-        x = std::lcm(x, cycle_length(d));
+            const size_t m = t.size();
+            if (m != 0) {
+                unsigned d = 1;
+                while (t.compare(d, m - d, t, 0, m - d) != 0 || t.compare(0, d, t, m - d, d) != 0)
+                    ++d;
+
+                x = std::lcm(x, d);
+            }
+        }
     }
 
     answer(x);
