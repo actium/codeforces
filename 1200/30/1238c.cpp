@@ -21,7 +21,7 @@ void solve(const std::vector<unsigned>& p)
 
     unsigned k = 0;
     for (size_t i = 1; i < n; ++i)
-        ++(p[i+1] < p[i] - 1 ? k : i);
+        p[i+1] < p[i] - 1 ? ++k : ++i;
 
     answer(k);
 }

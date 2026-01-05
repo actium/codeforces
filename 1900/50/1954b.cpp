@@ -31,7 +31,7 @@ void solve(std::vector<unsigned>& a)
         if (a[i] == a[0]) {
             ++k;
         } else {
-            q = std::min(q, k);
+            q = std::min<unsigned>(q, k);
             k = 0;
         }
     }

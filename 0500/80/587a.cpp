@@ -17,7 +17,7 @@ void answer(unsigned x)
 
 void solve(const std::vector<unsigned>& w)
 {
-    unsigned f[1000021] = {};
+    unsigned f[1000022] = {};
     for (const unsigned x : w)
         ++f[x];
 

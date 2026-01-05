@@ -11,7 +11,7 @@ std::string time_to_string(unsigned t)
 {
     const unsigned h = t / 60, m = t % 60;
 
-    char s[6];
+    char s[16];
     snprintf(s, sizeof(s), "%02u:%02u", h, m);
     return s;
 }

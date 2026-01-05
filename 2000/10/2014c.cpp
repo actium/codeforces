@@ -35,7 +35,7 @@ void solve(std::vector<unsigned>& a)
     for (const unsigned v : a)
         x += v;
 
-    answer(std::max(2ll * a[n/2] * n - x + 1, 0ll));
+    answer(std::max<integer>(2LL * a[n/2] * n - x + 1, 0LL));
 }
 
 void test_case()

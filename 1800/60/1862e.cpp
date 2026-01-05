@@ -30,7 +30,7 @@ void solve(const std::vector<int>& a, size_t m, unsigned d)
                 continue;
 
             p += a[i];
-            q = std::max(q, p - (i + 1ll) * d);
+            q = std::max<integer>(q, p - (i + 1LL) * d);
 
             s.insert(a[i]);
             if (s.size() >= m) {

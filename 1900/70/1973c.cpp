@@ -28,7 +28,7 @@ void solve(const std::vector<unsigned>& p)
     for (size_t i = 0; i < n; ++i)
         x[p[i]] = i;
 
-    std::vector<size_t> q(n);
+    std::vector<unsigned> q(n);
     for (unsigned i = 1, u = n / 2, v = n; i <= n; ++i) {
         if (x[i] % 2 == x[1] % 2)
             q[x[i]] = u--;
