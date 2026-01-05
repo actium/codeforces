@@ -5,7 +5,7 @@ void answer(size_t v)
     std::cout << v << '\n';
 }
 
-size_t solve(size_t n, size_t k)
+void solve(size_t n, size_t k)
 {
     const size_t r = n * 2;
     const size_t g = n * 5;

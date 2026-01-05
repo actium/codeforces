@@ -16,7 +16,7 @@ void answer(size_t v)
     std::cout << v << '\n';
 }
 
-size_t solve(std::vector<size_t>& f, size_t n)
+void solve(std::vector<size_t>& f, size_t n)
 {
     std::sort(f.begin(), f.end());
 

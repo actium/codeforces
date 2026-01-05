@@ -7,7 +7,7 @@ void answer(bool v)
     std::cout << s[v] << '\n';
 }
 
-bool solve(const std::string& s)
+void solve(const std::string& s)
 {
 #if false
     size_t yes = 0, no = 0;

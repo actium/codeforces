@@ -15,7 +15,7 @@ void answer(size_t x, size_t y)
     std::cout << x << ' ' << y << '\n';
 }
 
-const char* solve(const std::vector<size_t>& p)
+void solve(const std::vector<size_t>& p)
 {
     const size_t n = p.size();
 

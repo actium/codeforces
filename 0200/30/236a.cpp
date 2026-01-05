@@ -7,7 +7,7 @@ void answer(const char* v)
     std::cout << v << '\n';
 }
 
-const char* solve(std::string name)
+void solve(std::string name)
 {
     std::sort(name.begin(), name.end());
     name.erase(std::unique(name.begin(), name.end()), name.end());

@@ -5,7 +5,7 @@ void answer(size_t x, size_t y, char z)
     std::cout << 1 + x << ' ' << 1 + y << ' ' << z << '\n';
 }
 
-const char* solve(size_t n, size_t m, size_t k)
+void solve(size_t n, size_t m, size_t k)
 {
     const size_t x = (k - 1) / (2 * m);
     const size_t y = (k - 1) % (2 * m);

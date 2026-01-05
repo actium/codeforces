@@ -13,7 +13,7 @@ void answer(bool v)
     std::cout << s[v] << '\n';
 }
 
-bool solve(const std::string& s1, const std::string& s2, const std::string& s3)
+void solve(const std::string& s1, const std::string& s2, const std::string& s3)
 {
     const size_t c1 = count_vowels(s1);
     const size_t c2 = count_vowels(s2);

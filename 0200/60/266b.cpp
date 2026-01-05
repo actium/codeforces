@@ -6,7 +6,7 @@ void answer(const std::string& v)
     std::cout << v << '\n';
 }
 
-std::string solve(std::string q, size_t t)
+void solve(std::string q, size_t t)
 {
     const size_t n = q.length();
 

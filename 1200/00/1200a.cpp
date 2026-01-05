@@ -6,7 +6,7 @@ void answer(const std::string& v)
     std::cout << v << '\n';
 }
 
-std::string solve(const std::string& s)
+void solve(const std::string& s)
 {
     std::string t(10, '0');
 

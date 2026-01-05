@@ -15,7 +15,7 @@ void answer(size_t v)
     std::cout << v << '\n';
 }
 
-size_t solve(const std::vector<std::vector<int>>& a)
+void solve(const std::vector<std::vector<int>>& a)
 {
     const size_t n = a.size();
 

@@ -16,7 +16,7 @@ void answer(size_t v)
     std::cout << v << '\n';
 }
 
-size_t solve(std::array<unsigned, 3>& p, size_t d)
+void solve(std::array<unsigned, 3>& p, size_t d)
 {
     std::sort(p.begin(), p.end());
 

@@ -7,7 +7,7 @@ void answer(bool v)
     std::cout << s[v] << '\n';
 }
 
-bool solve(const std::string& s)
+void solve(const std::string& s)
 {
     const char p[] = "heidi";
 

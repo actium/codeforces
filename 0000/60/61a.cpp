@@ -6,7 +6,7 @@ void answer(const std::string& v)
     std::cout << v << '\n';
 }
 
-std::string& solve(std::string& n1, const std::string& n2)
+void solve(std::string& n1, const std::string& n2)
 {
     const size_t n = n1.length();
     for (size_t i = 0; i < n; ++i)

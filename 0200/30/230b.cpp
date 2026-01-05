@@ -23,7 +23,7 @@ void answer(bool v)
     std::cout << s[v] << '\n';
 }
 
-bool solve(uint64_t x)
+void solve(uint64_t x)
 {
     const uint64_t sr = sqrt(x);
 

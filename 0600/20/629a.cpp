@@ -16,7 +16,7 @@ void answer(size_t v)
     std::cout << v << '\n';
 }
 
-size_t solve(const std::vector<std::string>& c)
+void solve(const std::vector<std::string>& c)
 {
     const size_t n = c.size();
 

@@ -7,7 +7,7 @@ void answer(integer x, integer y, integer z)
     std::cout << x << ' ' << y << ' ' << z << '\n';
 }
 
-const char* solve(integer n, integer k)
+void solve(integer n, integer k)
 {
     const integer x = (n / 2) / (1 + k);
 
