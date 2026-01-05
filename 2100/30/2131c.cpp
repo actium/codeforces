@@ -28,7 +28,7 @@ void solve(std::vector<unsigned>& s, std::vector<unsigned>& t, unsigned k)
         if (it == p.end())
             it = p.find(k - x % k);
 
-        if (it == p.end()) {
+        if (it == p.end())
             return answer(false);
 
         p.erase(it);
