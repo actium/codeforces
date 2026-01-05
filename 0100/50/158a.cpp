@@ -5,7 +5,9 @@ template <typename T>
 std::istream& operator >>(std::istream& input, std::vector<T>& v)
 {
     for (T& a : v)
-        std::cin >> a;
+        input >> a;
+
+    return input;
 }
 
 void answer(size_t v)
